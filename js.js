@@ -118,13 +118,21 @@ function getData() {
       $("#tr_lv2_b").after(is_complete);
 
       //Put data into table
-      $("#company_ceo_name_id").text(company_ceo_name + ")");
-      $("#last_day_id").text(last_day);
+      $("#company_ceo_name_id").text(
+        "얀마농기코리아㈜ 대표 이사 귀하(대표:" + company_ceo_name + ")"
+      );
+      $("#last_day_id").text(
+        last_day + "현재 다음 내용과 같이 채권•채무 사실이 있음을 확인 합니다. "
+      );
       $("#cur_day_id").text(cur_day);
       $("#cust_address_id").text(cust_address);
-      $("#agency_name_id").text(region_agency_name);
-      $("#agency_name_id_last").text(agency_name);
-      $("#cust_ceo_name_id").text(cust_ceo_name);
+      $("#agency_name_id").text(
+        region_agency_name +
+          " 대리점 대표 " +
+          cust_ceo_name +
+          "은 귀사와 계약을 체결 후 거래를 하면서"
+      );
+      $("#agency_name_id_last").text(agency_name + " 대리점");
       $("#cust_ceo_name_last").text(cust_ceo_name);
       $("#total_amount_d").text(formatNumber(total_amount_id_d));
       $("#total_amount_b").text(formatNumber(total_amount_id_b));

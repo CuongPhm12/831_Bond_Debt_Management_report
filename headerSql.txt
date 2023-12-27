@@ -35,7 +35,7 @@ select {calc_ym_ser} as calc_ym_ser
              , e.bond_debt_status_name
              , a.agency_cd
              , c.region
-             ,concat(c.region,c.agency_name) as region_agency_name
+             ,concat(c.region,' ',c.agency_name) as region_agency_name
              , c.agency_name
              , a.bond_debt_type
              , f.bond_debt_type_name
