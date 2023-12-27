@@ -9,7 +9,7 @@ function getData() {
   let company_ceo_name = $("#company_ceo_name").text().trim();
   let last_day = $("#last_day").text().trim();
   let cur_day = $("#cur_date").text().trim();
-
+  let region_agency_name = $("#region_agency_name").text().trim();
   //call ajax
   const data_Send = {};
   data_Send.menucode = "M000000831";
@@ -118,11 +118,11 @@ function getData() {
       $("#tr_lv2_b").after(is_complete);
 
       //Put data into table
-      $("#company_ceo_name_id").text(company_ceo_name);
+      $("#company_ceo_name_id").text(company_ceo_name + ")");
       $("#last_day_id").text(last_day);
       $("#cur_day_id").text(cur_day);
       $("#cust_address_id").text(cust_address);
-      $("#agency_name_id").text(agency_name);
+      $("#agency_name_id").text(region_agency_name);
       $("#agency_name_id_last").text(agency_name);
       $("#cust_ceo_name_id").text(cust_ceo_name);
       $("#cust_ceo_name_last").text(cust_ceo_name);

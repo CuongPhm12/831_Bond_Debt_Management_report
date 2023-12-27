@@ -7,6 +7,7 @@ select {calc_ym_ser} as calc_ym_ser
      , a.agency_cd
      , a.region
      , a.agency_name
+     ,a.region_agency_name
      , a.bond_debt_type
      , if(a.bond_debt_type is null, '합계', if(a.sales_account_cd is null and b.no is null, '계', a.bond_debt_type_name)) as bond_debt_type_name
      , a.sales_account_cd
@@ -34,6 +35,7 @@ select {calc_ym_ser} as calc_ym_ser
              , e.bond_debt_status_name
              , a.agency_cd
              , c.region
+             ,concat(c.region,c.agency_name) as region_agency_name
              , c.agency_name
              , a.bond_debt_type
              , f.bond_debt_type_name
