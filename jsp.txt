@@ -1,0 +1,472 @@
+<%@page import="java.util.*"%>
+<%@page import="java.sql.*"%>
+<%@page import="java.net.*"%>
+<%@page import="java.io.*"%>
+<%@page import="java.text.SimpleDateFormat"%>
+<%@page import="java.util.Calendar"%>
+<%@page import="com.google.gson.Gson"%>
+<%@page import="java.sql.DriverManager"%>
+<%@page import="java.sql.SQLException"%>
+<%@page import="org.json.JSONArray"%>
+<%@page import="org.json.JSONObject"%>
+<%@page import="org.slf4j.Logger"%>
+<%@page import="org.slf4j.LoggerFactory"%>
+
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+<%@ include file="/WEB-INF/views/ajax/M000000001.jsp" %>
+<%@ include file="/WEB-INF/views/ajax/M000000241.jsp" %>
+<%
+    Logger logger = LoggerFactory.getLogger(getClass());
+
+    String header = (String)request.getParameter("header");
+    String detail = (String)request.getParameter("detail");
+    String sdetail = (String)request.getParameter("sdetail");
+    String type = (String)request.getParameter("type");
+
+    String driver = "org.mariadb.jdbc.Driver";
+    String url = "jdbc:mariadb://localhost:3306/simbizlocal?useUnicode=true&characterEncoding=UTF-8&characterSetResults=UTF-8";
+
+    String sLine = "";
+    String sText = "";
+    String user = "root";
+    String password = "tlaqlwm2174";
+
+    JSONObject jsonObj = new JSONObject();
+    String PassText = null;
+    String sql = "";
+    java.sql.Connection conn = null;
+    java.sql.PreparedStatement pstmt = null;
+    ResultSet rs = null;
+    Statement stmt = null;
+    String UID = (String)request.getParameter("UID");
+    
+    java.text.SimpleDateFormat dateFormat = new SimpleDateFormat ( "yyyy-MM-dd HH:mm:ss");
+    java.util.Date time = new java.util.Date();
+    String datetime = dateFormat.format(time);
+
+    try {
+        try {
+            Class.forName(driver);
+            conn = DriverManager.getConnection(url, user, password);
+            conn.setAutoCommit(false);
+
+            if ( type.equals("insert") || type.equals("edit")) {
+                Gson gson = new Gson();
+                String msg = "";
+                
+                if (header != null) {
+                    List<Map> list = gson.fromJson(header, List.class);
+
+                    for(int i = 0 ; i < list.size() ; i ++) {
+                        Map<String, String> row = getRow(conn, "simbizlocal", "tb_bond_debt", list.get(i));
+                        
+                        //check is submit
+                        String cnt = getSOrder(conn, "select count(*) cnt from tb_bond_debt where calc_ym = " + row.get("calc_ym") + " and agency_cd = " + row.get("agency_cd") + " and sales_account_cd = " + row.get("sales_account_cd"));
+                        if (!cnt.equals("0")) {
+                            msg = "해당 월의 데이터가 존재합니다. 재성성을 원하시면 삭제후 다시 시도해 주세요.";
+                            break;
+                        } else {
+                            //boolean isInsert = cnt.equals("0");
+                            row.put("createuser", "'" + UID + "'");
+                            row.put("createdate", "'" + datetime + "'");
+                            row.put("updateuser", "'" + UID + "'");
+                            row.put("updatedate", "'" + datetime + "'");
+
+                            Iterator<String> keys = row.keySet().iterator();
+                            while (keys.hasNext()) {
+                                String key = keys.next();
+                                if (row.get(key) != null) {                        
+                                    String value = row.get(key);
+                                    if (!sqlCoumns.equals("")) { sqlCoumns += ", "; }
+                                    sqlCoumns += key;
+                                    if (!sqlValues.equals("")) { sqlValues += ", "; }
+                                    sqlValues += value;
+                                }
+                            }
+
+                            sql = "insert into tb_bond_debt (" + sqlCoumns + ") VALUES (" + sqlValues + ") ";
+                            logger.info("insert into tb_bond_debt");
+                            logger.info(sql);
+                            pstmt = conn.prepareStatement(sql);
+                            pstmt.executeUpdate();
+                        }
+                    }
+
+                    if (msg.equals("")) {
+                        PassText = "저장되었습니다.";
+                        jsonObj.put("result", PassText);
+                        PassText = jsonObj.toString();
+                        out.write(PassText);
+                        out.flush();
+                        conn.commit();
+                        logger.info("!!!!COMMIT DONE!!!!");
+                    } else {
+                        PassText = msg;
+                        jsonObj.put("result", PassText);
+                        PassText = jsonObj.toString();
+                        out.write(PassText);
+                    }
+                }
+            }
+
+            if ( type.equals("delete") ) {
+                Gson gson = new Gson();
+                String msg = "";
+                
+                if (header != null) {
+                    List<Map> list = gson.fromJson(header, List.class);
+                    
+                    for (int i = 0 ; i < list.size() ; i ++) {
+                        //check status 
+                        if (list.get(i).get("bond_debt_status").toString().equals("C")) {
+                            msg = "이미 확인된 건이 있어서 삭제할 수 없습니다.";
+                            break;
+                        }
+                        
+                        Map<String, String> row = getRow(conn, "simbizlocal", "tb_bond_debt", list.get(i));
+                        
+                        sql = "delete from tb_bond_debt where calc_ym = " + row.get("calc_ym") + " and agency_cd = " + row.get("agency_cd") + " and sales_account_cd = " + row.get("sales_account_cd");
+                        logger.info("delete tb_sales_detail");
+                        logger.info(sql);
+                        pstmt = conn.prepareStatement(sql);
+                        pstmt.executeUpdate();
+                        
+                    }
+
+                    if (msg.equals("")) {
+                        PassText = "삭제되었습니다.";
+                        jsonObj.put("result", PassText);
+                        PassText = jsonObj.toString();
+                        out.write(PassText);
+                        out.flush();
+                        conn.commit();
+                        logger.info("!!!!COMMIT DONE!!!!");
+                    } else {
+                        PassText = msg;
+                        jsonObj.put("result", PassText);
+                        PassText = jsonObj.toString();
+                        out.write(PassText);
+                    }
+                }
+            }
+
+            if ( type.equals("get_data") ) {
+                String calc_ym_ser = (String)request.getParameter("calc_ym_ser");
+
+                sql  = "select '" + calc_ym_ser + "' as calc_ym\n";
+                sql += "     , 'N' as bond_debt_status\n";
+                sql += "     , e.bond_debt_status_name\n";
+                sql += "     , a.agency_cd\n";
+                sql += "     , c.region\n";
+                sql += "     , c.agency_name\n";
+                sql += "     , a.bond_debt_type\n";
+                sql += "     , f.bond_debt_type_name\n";
+                sql += "     , a.sales_account_cd\n";
+                sql += "     , b.remark\n";
+                sql += "     , b.account_nm\n";
+                sql += "     , a.amount\n";
+                sql += "     , '' as memo\n";
+                //상품대금
+                sql += "  from (\n";
+                sql += "        select 'D' as bond_debt_type\n";  //채무
+                sql += "             , a.agency_cd\n";
+                sql += "             , a.sales_account_cd\n";
+                sql += "             , ifnull(sum(a.bill_amount), 0) - ifnull((select sum(y.real_payed_amount)\n";
+                sql += "                                                         from tb_bill_sales x\n";
+                sql += "                                                         join tb_bill_deposit y on y.bill_id = x.id and y.bill_type = '01'\n";
+                sql += "                                                        where x.agency_cd = a.agency_cd\n";
+                sql += "                                                          and x.bill_year = a.bill_year\n";
+                sql += "                                                          and x.bill_month = a.bill_month\n";
+                sql += "                                                          and y.parent_id is null\n";   //어음대체는 제외하고 수금확정된 것 기준
+                sql += "                                                          and (y.real_payed_amount >= 0 or (y.real_payed_amount < 0 and y.process_status = 'C'))), 0) as amount\n";
+                sql += "          from tb_bill a\n";
+                sql += "         where a.bill_status = 'C'\n";
+                sql += "           and a.bill_type = '01'\n";
+                sql += "           and concat(a.bill_year, '-', a.bill_month) <= '" + calc_ym_ser + "'\n";
+                sql += "         group by a.agency_cd, a.sales_account_cd\n";
+
+                sql += "        union all\n";
+
+                // 상품외 대금
+                sql += "        select 'D' as bond_debt_type\n";  //채무
+                sql += "             , a.agency_cd\n";
+                sql += "             , a.sales_account_cd\n";
+                sql += "             , ifnull(sum(a.bill_amount), 0) - ifnull((select sum(real_payed_amount)\n";
+                sql += "                                                         from tb_bill_deposit\n";
+                sql += "                                                        where bill_id = a.id\n";
+                sql += "                                                          and bill_type = a.bill_type\n";
+                sql += "                                                          and parent_id is null\n";     //어음대체는 제외하고 수금확정된 것 기준
+                sql += "                                                          and (real_payed_amount >= 0 or (real_payed_amount < 0 and process_status = 'C'))), 0) as amount\n";
+                sql += "          from tb_bill a\n";
+                sql += "         where a.bill_status = 'C'\n";
+                sql += "           and a.bill_type <> '01'\n";
+                sql += "           and concat(a.bill_year, '-', a.bill_month) <= '" + calc_ym_ser + "'\n";
+                sql += "         group by a.agency_cd, a.sales_account_cd\n";
+
+                sql += "        union all\n";
+
+                //받을어음
+                sql += "        select 'D' as bond_debt_type\n";  //채무
+                sql += "             , a.agency_cd\n";
+                sql += "             , '11000-001' as sales_account_cd\n";
+                sql += "             , ifnull(max(a.deposit_amount), 0) - ifnull(sum(c.divided_amount), 0) as amount\n";
+                sql += "          from tb_deposit a\n";
+                sql += "          left join tb_bill_deposit b on b.reserves_id = a.id and b.reserves_type = 'DR' and b.process_status = 'C'\n";
+                sql += "          left join tb_bill_deposit c on c.parent_id = b.id and b.process_status = 'C'\n";
+                sql += "         where a.deposit_type = 'DR'\n";  //어음
+                sql += "           and a.draft_status = 'N'\n";   //정상
+                sql += "           and a.deposit_date <= last_day(concat('" + calc_ym_ser + "', '-01'))\n";
+                sql += "         group by a.agency_cd\n";
+                sql += "         having ifnull(max(a.deposit_amount), 0) - ifnull(sum(c.divided_amount), 0) > 0\n";
+
+                sql += "        union all\n";
+
+                //현금
+                sql += "        select 'B' as bond_debt_type\n";  //채권
+                sql += "             , a.agency_cd\n";
+                sql += "             , '10300-001' as sales_account_cd\n";
+                sql += "             , sum(a.remain_amount) as amount\n";
+                sql += "          from tb_deposit a\n";
+                sql += "         where a.deposit_type = 'CS'\n";  //현금
+                sql += "           and a.deposit_date <= last_day(concat('" + calc_ym_ser + "', '-01'))\n";
+                sql += "           and a.remain_amount > 0\n";    //잔액이 있는 경우만
+                sql += "         group by a.agency_cd\n";
+
+                sql += "        union all\n";
+
+                //수금자원
+                sql += "        select 'B' as bond_debt_type\n";  //채권
+                sql += "             , a.agency_cd\n";
+                sql += "             , a.sales_account_cd\n";
+                sql += "             , sum(a.remain_amount) as amount\n";
+                sql += "          from tb_reserves a\n";
+                sql += "         where a.pay_status = 'C'\n";
+                sql += "           and concat(a.pay_year, '-', a.pay_month) <= '" + calc_ym_ser + "'\n";
+                sql += "           and a.remain_amount > 0\n";    //잔액이 있는 경우만
+                sql += "         group by a.agency_cd, a.sales_account_cd\n";
+                sql += "       ) a\n";
+                sql += "  left join tb_ma_account_sales b on b.sales_account_cd = a.sales_account_cd\n";
+                sql += "  left join tb_ma_agency c on c.agency_cd = a.agency_cd\n";
+                sql += "  left join vw_ma_code_region d on d.region_cd = c.region\n";
+                sql += "  left join vw_ma_code_bond_debt_status e on e.bond_debt_status = 'N'\n";
+                sql += "  left join vw_ma_code_bond_debt_type f on f.bond_debt_type = a.bond_debt_type\n";
+                sql += " where a.amount <> 0";
+                sql += " order by d.sort, c.agency_name, a.bond_debt_type desc, b.sort\n";
+
+                List<Map<String, Object>> data = selectAllQuery(conn, sql);
+                
+                String json = new Gson().toJson(data);
+                out.write(json);
+            }
+            
+        if ( type.equals("get_data_to_print") ) {        
+                Gson gson = new Gson();
+                if(header != null){
+                    JSONObject searchValue = new JSONObject(header);
+                    String region = searchValue.getString("region").toString();
+                    String agency_name = searchValue.getString("agency_name").toString();
+                            String dataSql = "";
+                            dataSql +="select ";
+                            dataSql +="       a.calc_ym ";
+                            dataSql +="     , if(a.sales_account_cd is null and b.no is null, '', a.bond_debt_status) as bond_debt_status ";
+                            dataSql +="     , a.agency_cd ";
+                            dataSql +="     , a.region ";
+                            dataSql +="     , a.agency_name ";
+                            dataSql +="     , a.bond_debt_type  ";
+                            dataSql +="     , if(a.bond_debt_type is null, '합계', if(a.sales_account_cd is null and b.no is null, '계', a.bond_debt_type_name)) as bond_debt_type_name ";
+                            dataSql +="     , a.sales_account_cd ";
+                            dataSql +="     , if(a.sales_account_cd is null, '', a.remark) as remark ";
+                            dataSql +="     , if(a.sales_account_cd is null, '', a.account_nm) as account_nm ";
+                            dataSql +="     , a.amount ";
+                            dataSql +="     ,a.cust_biz_no ";
+                            dataSql +="	 ,a.cust_company_name ";
+                            dataSql +="	 ,a.cust_ceo_name ";
+                            dataSql +="	 ,a.cust_address ";
+                            dataSql +="	 ,a.company_biz_no ";
+                            dataSql +="	 ,a.company_company_name ";
+                            dataSql +="	 ,a.company_ceo_name ";
+                            dataSql +="	 ,a.company_address ";
+                            dataSql +="     , if(b.no is null, '', if(a.bond_debt_type = 'D', '결제 대상액 계', '지급 대상액 계')) as memo ";
+                            dataSql +="     , if(a.sales_account_cd is null, '', a.createuser) as createuser ";
+                            dataSql +="     , if(a.sales_account_cd is null, '', a.createdate) as createdate ";
+                            dataSql +="     , if(a.sales_account_cd is null, '', a.updateuser) as updateuser ";
+                            dataSql +="     , if(a.sales_account_cd is null, '', a.updatedate) as updatedate ";
+                            dataSql +="  from ( ";
+                            dataSql +="         select a.calc_ym ";
+                            dataSql +="             , a.bond_debt_status ";
+                            dataSql +="             , e.bond_debt_status_name ";
+                            dataSql +="             , a.agency_cd ";
+                            dataSql +="             , c.region ";
+                            dataSql +="             , c.agency_name ";
+                            dataSql +="             , a.bond_debt_type ";
+                            dataSql +="             , f.bond_debt_type_name ";
+                            dataSql +="             , a.sales_account_cd ";
+                            dataSql +="             , b.remark ";
+                            dataSql +="             , b.account_nm ";
+                            dataSql +="             , sum(a.amount) as amount ";
+                            dataSql +="             , a.memo ";
+                            dataSql +="             , a.createuser ";
+                            dataSql +="             , a.createdate ";
+                            dataSql +="             , a.updateuser ";
+                            dataSql +="             , a.updatedate ";
+                            dataSql +="             , d.sort as region_sort ";
+                            dataSql +="             , b.sort as account_sort ";
+                            dataSql +="             , c.biz_no as cust_biz_no ";
+                            dataSql +="			 , c.biz_name as cust_company_name ";
+                            dataSql +="		     , c.ceo_name as cust_ceo_name ";
+                            dataSql +="			 , c.address as cust_address ";
+                            dataSql +="			 , company.company_no as company_biz_no ";
+                            dataSql +="			 , company.company_name as company_company_name ";
+                            dataSql +="			 , company.ceo_name as company_ceo_name ";
+                            dataSql +="			 , company.company_address1 as company_address ";
+                            dataSql +="          from tb_bond_debt a ";
+                            dataSql +="          left join tb_ma_account_sales b on b.sales_account_cd = a.sales_account_cd ";
+                            dataSql +="          left join tb_ma_agency c on c.agency_cd = a.agency_cd ";
+                            dataSql +="          left join vw_ma_code_region d on d.region_cd = c.region ";
+                            dataSql +="          left join vw_ma_code_bond_debt_status e on e.bond_debt_status = a.bond_debt_status ";
+                            dataSql +="          left join vw_ma_code_bond_debt_type f on f.bond_debt_type = a.bond_debt_type ";
+                            dataSql +="          left join tb_ma_company company on company.company_cd = 'YANMAR' ";
+                            dataSql +="         where 1 = 1 ";
+                            dataSql +="           and c.region = '"+region+"'";
+                            dataSql +="           and  c.agency_name  = '"+agency_name+"'";
+                            dataSql +="           and a.bond_debt_type='D' ";
+                            /*dataSql +="           and e.bond_debt_status_name is not null and b.remark is not null ";*/
+                            dataSql +="         group by a.agency_cd, a.bond_debt_type, a.sales_account_cd ";
+                           /* dataSql +="         with rollup ";*/
+                            dataSql +="         having a.agency_cd is not null ";
+                            dataSql +="       ) a ";
+                            /*dataSql +="left join (select 'D' bond_debt_type, null as no union all ";
+                            dataSql +="           select 'D' bond_debt_type, 1 no union all ";
+                            dataSql +="           select 'B' bond_debt_type, null no union all ";
+                            dataSql +="           select 'B' bond_debt_type, 1 no ";*/
+                            dataSql +="left join (select 'D' bond_debt_type, null as no union all ";
+                            dataSql +="           select 'D', 1 union all ";
+                            dataSql +="           select 'B', null  union all ";
+                            dataSql +="           select 'B', 1 ";
+                            dataSql += ") b on b.bond_debt_type = a.bond_debt_type and a.sales_account_cd is null ";
+                            dataSql +="  order by if(a.agency_cd is null, 1, 0), a.region_sort, a.agency_name ";
+                            dataSql +="         , if(a.bond_debt_type is null, 1, 0), b.no, a.bond_debt_type desc ";
+                            dataSql +="         , if(a.sales_account_cd is null, 1, 0), a.account_sort ";
+                List<Map<String, Object>> data = selectAllQuery(conn,dataSql);
+                Map<String, Object> response_data = new HashMap<>();
+                response_data.put("res_d", data);
+                            dataSql = "";
+                            dataSql +="select ";
+                            dataSql +="       a.calc_ym ";
+                            dataSql +="     , if(a.sales_account_cd is null and b.no is null, '', a.bond_debt_status) as bond_debt_status ";
+                            dataSql +="     , a.agency_cd ";
+                            dataSql +="     , a.region ";
+                            dataSql +="     , a.agency_name ";
+                            dataSql +="     , a.bond_debt_type  ";
+                            dataSql +="     , if(a.bond_debt_type is null, '합계', if(a.sales_account_cd is null and b.no is null, '계', a.bond_debt_type_name)) as bond_debt_type_name ";
+                            dataSql +="     , a.sales_account_cd ";
+                            dataSql +="     , if(a.sales_account_cd is null, '', a.remark) as remark ";
+                            dataSql +="     , if(a.sales_account_cd is null, '', a.account_nm) as account_nm ";
+                            dataSql +="     , a.amount ";
+                            dataSql +="     ,a.cust_biz_no ";
+                            dataSql +="	 ,a.cust_company_name ";
+                            dataSql +="	 ,a.cust_ceo_name ";
+                            dataSql +="	 ,a.cust_address ";
+                            dataSql +="	 ,a.company_biz_no ";
+                            dataSql +="	 ,a.company_company_name ";
+                            dataSql +="	 ,a.company_ceo_name ";
+                            dataSql +="	 ,a.company_address ";
+                            dataSql +="     , if(b.no is null, '', if(a.bond_debt_type = 'D', '결제 대상액 계', '지급 대상액 계')) as memo ";
+                            dataSql +="     , if(a.sales_account_cd is null, '', a.createuser) as createuser ";
+                            dataSql +="     , if(a.sales_account_cd is null, '', a.createdate) as createdate ";
+                            dataSql +="     , if(a.sales_account_cd is null, '', a.updateuser) as updateuser ";
+                            dataSql +="     , if(a.sales_account_cd is null, '', a.updatedate) as updatedate ";
+                            dataSql +="  from ( ";
+                            dataSql +="         select a.calc_ym ";
+                            dataSql +="             , a.bond_debt_status ";
+                            dataSql +="             , e.bond_debt_status_name ";
+                            dataSql +="             , a.agency_cd ";
+                            dataSql +="             , c.region ";
+                            dataSql +="             , c.agency_name ";
+                            dataSql +="             , a.bond_debt_type ";
+                            dataSql +="             , f.bond_debt_type_name ";
+                            dataSql +="             , a.sales_account_cd ";
+                            dataSql +="             , b.remark ";
+                            dataSql +="             , b.account_nm ";
+                            dataSql +="             , sum(a.amount) as amount ";
+                            dataSql +="             , a.memo ";
+                            dataSql +="             , a.createuser ";
+                            dataSql +="             , a.createdate ";
+                            dataSql +="             , a.updateuser ";
+                            dataSql +="             , a.updatedate ";
+                            dataSql +="             , d.sort as region_sort ";
+                            dataSql +="             , b.sort as account_sort ";
+                            dataSql +="             , c.biz_no as cust_biz_no ";
+                            dataSql +="			 , c.biz_name as cust_company_name ";
+                            dataSql +="		     , c.ceo_name as cust_ceo_name ";
+                            dataSql +="			 , c.address as cust_address ";
+                            dataSql +="			 , company.company_no as company_biz_no ";
+                            dataSql +="			 , company.company_name as company_company_name ";
+                            dataSql +="			 , company.ceo_name as company_ceo_name ";
+                            dataSql +="			 , company.company_address1 as company_address ";
+                            dataSql +="          from tb_bond_debt a ";
+                            dataSql +="          left join tb_ma_account_sales b on b.sales_account_cd = a.sales_account_cd ";
+                            dataSql +="          left join tb_ma_agency c on c.agency_cd = a.agency_cd ";
+                            dataSql +="          left join vw_ma_code_region d on d.region_cd = c.region ";
+                            dataSql +="          left join vw_ma_code_bond_debt_status e on e.bond_debt_status = a.bond_debt_status ";
+                            dataSql +="          left join vw_ma_code_bond_debt_type f on f.bond_debt_type = a.bond_debt_type ";
+                            dataSql +="          left join tb_ma_company company on company.company_cd = 'YANMAR' ";
+                            dataSql +="         where 1 = 1 ";
+                            dataSql +="           and c.region = '"+region+"'";
+                            dataSql +="           and  c.agency_name  = '"+agency_name+"'";
+                            dataSql +="           and a.bond_debt_type='B' ";
+                            /*dataSql +="           and e.bond_debt_status_name is not null and b.remark is not null ";
+                            dataSql +="         group by a.agency_cd, a.bond_debt_type, a.sales_account_cd ";
+                            dataSql +="         with rollup ";
+                            dataSql +="         having a.agency_cd is not null ";
+                            dataSql +="       ) a ";
+                            dataSql +="left join (select 'D' bond_debt_type, null no union all ";
+                            dataSql +="           select 'D' bond_debt_type, 1 no union all ";
+                            dataSql +="           select 'B' bond_debt_type, null no union all ";
+                            dataSql +="           select 'B' bond_debt_type, 1 no) b on b.bond_debt_type = a.bond_debt_type and a.sales_account_cd is null ";
+                            dataSql +="  order by if(a.agency_cd is null, 1, 0), a.region_sort, a.agency_name ";
+                            dataSql +="         , if(a.bond_debt_type is null, 1, 0), b.no, a.bond_debt_type desc ";
+                            dataSql +="         , if(a.sales_account_cd is null, 1, 0), a.account_sort ";*/
+                            /*cuong add*/
+                              /*dataSql +="           and e.bond_debt_status_name is not null and b.remark is not null ";*/
+                            dataSql +="         group by a.agency_cd, a.bond_debt_type, a.sales_account_cd ";
+                           /* dataSql +="         with rollup ";*/
+                            dataSql +="         having a.agency_cd is not null ";
+                            dataSql +="       ) a ";
+                            /*dataSql +="left join (select 'D' bond_debt_type, null as no union all ";
+                            dataSql +="           select 'D' bond_debt_type, 1 no union all ";
+                            dataSql +="           select 'B' bond_debt_type, null no union all ";
+                            dataSql +="           select 'B' bond_debt_type, 1 no ";*/
+                            dataSql +="left join (select 'D' bond_debt_type, null as no union all ";
+                            dataSql +="           select 'D', 1 union all ";
+                            dataSql +="           select 'B', null  union all ";
+                            dataSql +="           select 'B', 1 ";
+                            dataSql += ") b on b.bond_debt_type = a.bond_debt_type and a.sales_account_cd is null ";
+                            dataSql +="  order by if(a.agency_cd is null, 1, 0), a.region_sort, a.agency_name ";
+                            dataSql +="         , if(a.bond_debt_type is null, 1, 0), b.no, a.bond_debt_type desc ";
+                            dataSql +="         , if(a.sales_account_cd is null, 1, 0), a.account_sort ";
+                 data = selectAllQuery(conn,dataSql);
+                /*  response_data = new HashMap<>();*/
+                response_data.put("res_b", data);
+              String jsonString = new Gson().toJson(response_data);
+              out.print(jsonString);
+        }
+    }
+   
+
+        } catch (Throwable throwable) {
+            if (conn != null) {
+                conn.rollback();
+                logger.info("!!!!ROLLBACK DONE!!!!");
+            }
+            throw throwable;
+        } finally {
+            if (conn != null) conn.close();
+            if (pstmt != null) pstmt.close();
+        }
+    } catch (Exception e) {
+        out.write("error : " + e.getMessage().toString() + "\n");
+        if (conn != null) conn.close();
+        if (pstmt != null) pstmt.close();
+    }
+%>
